@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" role="img" aria-labelledby="t d">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="455" viewBox="0 0 900 455" role="img" aria-labelledby="t d">
 <title id="t">simple prune</title>
 <desc id="d">Animated terminal: running "docker sp -a" lists the images that "docker image prune -a" would remove, and removes nothing.</desc>
 <style>
@@ -15,12 +15,13 @@ text{font-family:Menlo,"DejaVu Sans Mono","Courier New",monospace;font-size:15px
 @keyframes r4{0%,29.712%{opacity:0}29.722%,100%{opacity:1}}
 @keyframes f1{0%,34.434000000000005%{opacity:0}34.444%,100%{opacity:1}}
 @keyframes f2{0%,36.101%{opacity:0}36.111%,100%{opacity:1}}
+@keyframes f3{0%,37.212%{opacity:0}37.222%,100%{opacity:1}}
 @keyframes ro{0%,41.657000000000004%{opacity:0}41.667%,100%{opacity:1}}
 @keyframes ip{0%,45.546%{opacity:0}45.556%,100%{opacity:1}}
 @keyframes life{0%,91.111%{opacity:1}95.556%,99.9%{opacity:0}100%{opacity:1}}
 </style>
-<rect width="900" height="430" rx="12" fill="#0d1117"/>
-<rect x="0.5" y="0.5" width="899" height="429" rx="12" fill="none" stroke="#30363d"/>
+<rect width="900" height="455" rx="12" fill="#0d1117"/>
+<rect x="0.5" y="0.5" width="899" height="454" rx="12" fill="none" stroke="#30363d"/>
 <path d="M0.5 12.5a12 12 0 0 1 12-12h875a12 12 0 0 1 12 12V40H0.5z" fill="#161b22"/>
 <line x1="0" y1="40.5" x2="900" y2="40.5" stroke="#30363d"/>
 <circle cx="24" cy="21" r="6" fill="#ff5f56"/><circle cx="44" cy="21" r="6" fill="#ffbd2e"/><circle cx="64" cy="21" r="6" fill="#27c93f"/>
@@ -37,8 +38,9 @@ text{font-family:Menlo,"DejaVu Sans Mono","Courier New",monospace;font-size:15px
 <text x="32" y="225" xml:space="preserve" style="animation:r3 18.0s linear infinite;opacity:0"><tspan fill="#e3b341">e02d7f5a9c13  </tspan><tspan fill="#79c0ff">node:22-alpine        </tspan><tspan fill="#8b949e">2026-03-02 09:12:30   </tspan><tspan fill="#e6edf3" font-weight="700">178MB</tspan></text>
 <text x="32" y="250" xml:space="preserve" style="animation:r4 18.0s linear infinite;opacity:0"><tspan fill="#e3b341">21a5bc93624c  </tspan><tspan fill="#79c0ff">busybox:1.36          </tspan><tspan fill="#8b949e">2023-05-18 22:34:17   </tspan><tspan fill="#e6edf3" font-weight="700">8.91MB</tspan></text>
 <text x="32" y="289" xml:space="preserve" style="animation:f1 18.0s linear infinite;opacity:0"><tspan fill="#ffa657" font-weight="700">5 images</tspan><tspan fill="#e6edf3"> would be removed by </tspan><tspan fill="#79c0ff">'docker image prune -a'</tspan><tspan fill="#e6edf3"> — total </tspan><tspan fill="#e6edf3" font-weight="700">2.57GB</tspan></text>
-<text x="32" y="311" fill="#6e7681" xml:space="preserve" style="animation:f2 18.0s linear infinite;opacity:0">(total is an overestimate: layers shared between images are counted more than once)</text>
-<text x="32" y="350" xml:space="preserve" style="animation:ro 18.0s linear infinite;opacity:0"><tspan fill="#7ee787" font-weight="700">✔ read-only</tspan><tspan fill="#8b949e"> — nothing was removed</tspan></text>
-<g style="animation:ip 18.0s linear infinite;opacity:0"><text x="32" y="383" fill="#7ee787" font-weight="700">$</text><rect x="50.0" y="369" width="9.0" height="19" fill="#e6edf3" style="animation:blink 1s step-end infinite"/></g>
+<text x="32" y="311" fill="#6e7681" xml:space="preserve" style="animation:f2 18.0s linear infinite;opacity:0">(total is an overestimate: layers shared between images are counted more than once;</text>
+<text x="32" y="331" xml:space="preserve" style="animation:f3 18.0s linear infinite;opacity:0"><tspan fill="#6e7681"> at least </tspan><tspan fill="#7ee787" font-weight="700">1.9GB</tspan><tspan fill="#6e7681"> is used only by these images and will certainly be freed)</tspan></text>
+<text x="32" y="370" xml:space="preserve" style="animation:ro 18.0s linear infinite;opacity:0"><tspan fill="#7ee787" font-weight="700">✔ read-only</tspan><tspan fill="#8b949e"> — nothing was removed</tspan></text>
+<g style="animation:ip 18.0s linear infinite;opacity:0"><text x="32" y="403" fill="#7ee787" font-weight="700">$</text><rect x="50.0" y="389" width="9.0" height="19" fill="#e6edf3" style="animation:blink 1s step-end infinite"/></g>
 </g>
 </svg>

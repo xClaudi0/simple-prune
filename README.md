@@ -179,7 +179,7 @@ docker sp
 docker sp -a --json | jq '{count, total_size, min_reclaimable}'
 ```
 ```json
-{ "count": 21, "total_size": 10979900469, "min_reclaimable": 9117281712 }
+{ "count": 5, "total_size": 2569181803, "min_reclaimable": 1912004477 }
 ```
 
 **The 3 biggest images that `-a` would delete**
@@ -188,9 +188,9 @@ docker sp -a --json | jq '{count, total_size, min_reclaimable}'
 docker sp -a --json | jq -r '.images[:3][] | "\(.short_id)  \(.tags[0] // "<none>")  \(.size / 1e9 * 100 | round / 100) GB"'
 ```
 ```
-202bef359512  public.ecr.aws/supabase/studio:2026.06.03-sha-0bca601  1.64 GB
-4145c58737fc  thijsvanloef/palworld-server-docker:latest  1.3 GB
-d6566e93e6a9  mongo:latest  1.3 GB
+7c3e91ab20d4  mongo:7  1.3 GB
+b84f0a62c1e9  postgres:16  0.65 GB
+5a6c1e8f4b77  <none>  0.43 GB
 ```
 
 **Only the untagged images that `-a` would remove (count)**
