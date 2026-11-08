@@ -34,6 +34,21 @@ func TestTable(t *testing.T) {
 	}
 }
 
+func TestTableMinReclaimable(t *testing.T) {
+	r := sample()
+	r.MinKnown, r.MinReclaimable = true, 900_000
+	var b bytes.Buffer
+	_ = WriteTable(&b, r)
+	if !strings.Contains(b.String(), "at least 900kB is used only by these images") {
+		t.Fatalf("missing note:\n%s", b.String())
+	}
+	var j bytes.Buffer
+	_ = WriteJSON(&j, r)
+	if !strings.Contains(j.String(), `"min_reclaimable": 900000`) || !strings.Contains(j.String(), `"unique_size"`) {
+		t.Fatalf("json:\n%s", j.String())
+	}
+}
+
 func TestTableEmpty(t *testing.T) {
 	var b bytes.Buffer
 	_ = WriteTable(&b, Result{Mode: "prune", Images: []Image{}})

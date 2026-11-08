@@ -20,6 +20,7 @@
 - [Install](#install)
 - [Usage](#usage)
 - [Example output](#example-output)
+- [Recipes](#recipes)
 - [How it works](#how-it-works)
 - [Naming](#naming)
 - [Standalone use](#standalone-use)
@@ -105,13 +106,14 @@ Check with `docker --help`: `simpleprune` (and `sp`) should be listed under plug
 ## Usage
 
 ```
-docker sp [-a|--all] [--json]
+docker sp [-a|--all] [--filter key=value]... [--json]
 ```
 
 | Option         | Effect                                                            |
 |----------------|-------------------------------------------------------------------|
 | *(none)*       | simulates `docker image prune` (unused **dangling** images)       |
 | `-a`, `--all`  | simulates `docker image prune -a` (**all** unused images)         |
+| `--filter`     | like `docker image prune --filter`; repeatable: `until=<duration\|timestamp>`, `label=<key>[=<value>]`, `label!=<key>[=<value>]` |
 | `--json`       | prints JSON instead of a table                                    |
 
 Unknown arguments or flags print an error plus the help on stderr and exit with code 1.
@@ -128,7 +130,7 @@ b84f0a62c1e9   postgres:16      2026-04-07 01:39:11   649MB
 5a6c1e8f4b77   <none>:<none>    2025-07-09 17:21:03   433MB
 
 3 images would be removed by 'docker image prune -a' — total 2.38GB
-(total is an overestimate: layers shared between images are counted more than once)
+(total is an overestimate: layers shared between images are counted more than once; at least 1.68GB is used only by these images and will certainly be freed)
 ```
 
 Nothing to remove:
@@ -144,19 +146,96 @@ JSON (`docker sp --json`):
   "mode": "prune",
   "count": 1,
   "total_size": 433271803,
+  "min_reclaimable": 433271803,
   "images": [
     {
       "id": "sha256:5a6c1e8f4b77…",
       "short_id": "5a6c1e8f4b77",
       "tags": [],
       "created": "2025-07-09T17:21:03Z",
-      "size": 433271803
+      "size": 433271803,
+      "unique_size": 433271803
     }
   ]
 }
 ```
 
-With an empty result: `"count": 0, "total_size": 0, "images": []`. `mode` is `"prune"` or `"prune -a"`.
+With an empty result: `"count": 0, "total_size": 0, "images": []`. `unique_size` (per image) and `min_reclaimable` are omitted when the daemon does not report shared sizes. `mode` is `"prune"` or `"prune -a"`.
+
+## Recipes
+
+Real combinations to see what would happen. Nothing below deletes anything.
+(`jq` is optional and only used to post-process the JSON.)
+
+**What would plain `docker image prune` remove?**
+
+```sh
+docker sp
+```
+
+**What would `docker image prune -a` free, in numbers?**
+
+```sh
+docker sp -a --json | jq '{count, total_size, min_reclaimable}'
+```
+```json
+{ "count": 21, "total_size": 10979900469, "min_reclaimable": 9117281712 }
+```
+
+**The 3 biggest images that `-a` would delete**
+
+```sh
+docker sp -a --json | jq -r '.images[:3][] | "\(.short_id)  \(.tags[0] // "<none>")  \(.size / 1e9 * 100 | round / 100) GB"'
+```
+```
+202bef359512  public.ecr.aws/supabase/studio:2026.06.03-sha-0bca601  1.64 GB
+4145c58737fc  thijsvanloef/palworld-server-docker:latest  1.3 GB
+d6566e93e6a9  mongo:latest  1.3 GB
+```
+
+**Only the untagged images that `-a` would remove (count)**
+
+```sh
+docker sp -a --json | jq '[.images[] | select(.tags | length == 0)] | length'
+```
+
+**Keep anything labelled `keep=true`, ignore images added in the last 24h**
+
+```sh
+docker sp -a --filter 'label!=keep=true' --filter until=24h
+```
+
+**Only images with a given label**
+
+```sh
+docker sp -a --filter label=com.docker.compose.project
+```
+
+**Preview, then prune with the exact same filters** (the preview is a separate, read-only step)
+
+```sh
+docker sp -a --filter until=720h          # look first
+docker image prune -a --filter until=720h # then run the real thing
+```
+
+**Fail a script if there is something to clean** (exit code is always 0 on success, so test the count)
+
+```sh
+test "$(docker sp --json | jq .count)" -eq 0 || echo "dangling images found"
+```
+
+**Run against another daemon or context**
+
+```sh
+DOCKER_HOST=ssh://user@build-server docker sp -a
+docker --context staging sp --json
+```
+
+**Mistyped option: error, help on stderr, exit code 1**
+
+```sh
+docker sp --nope; echo $?
+```
 
 ## How it works
 
@@ -196,11 +275,15 @@ global flags such as `-H` or `--context` given to `docker` are not available.
 
 ## Limitations
 
-- The total is an **overestimate**: shared layers are counted once per image.
-- The `dangling` filter is evaluated by the daemon. With some image stores (e.g. containerd)
-  an image may match the filter while the full list shows tags for it. The plugin reports
-  what the daemon returns, as `docker image prune` would.
-- Out of scope for now: prune `--filter` support (`until`, `label`).
+- `total_size` is an **overestimate**: shared layers are counted once per image. The plugin also asks the daemon for each image's shared size and reports `min_reclaimable` (sum of `size - shared size`): a lower bound of what is certainly freed. The real figure lies between the two, because layers shared only among the removed images are freed too but cannot be measured through the API.
+- With the containerd image store the same image ID can have both a tagged and a dangling
+  record, and the daemon's `dangling=true` filter returns the untagged one. Plain `prune`
+  only drops dangling records, so the image would stay. The plugin therefore also excludes,
+  in the default mode, every ID that has at least one tag in the full image list. This
+  behaviour is inferred from the API data, not verified by running a real prune.
+- `--filter` is evaluated by the daemon, exactly as for `docker image prune`. On the containerd
+  image store `until` appears to use the time the image entered the store, not its `Created` date
+  (so a 2021 image pulled last month is not "older than 1 year"). Unknown filter keys are rejected.
 
 ## Development
 
@@ -278,18 +361,34 @@ Verifica con `docker --help`: `simpleprune` (e `sp`) compaiono tra i plugin.
 ## Uso
 
 ```
-docker sp [-a|--all] [--json]
+docker sp [-a|--all] [--filter key=value]... [--json]
 ```
 
 | Opzione        | Effetto                                                              |
 |----------------|----------------------------------------------------------------------|
 | *(nessuna)*    | simula `docker image prune` (immagini **dangling** non usate)        |
 | `-a`, `--all`  | simula `docker image prune -a` (**tutte** le immagini non usate)     |
+| `--filter`     | come `docker image prune --filter`, ripetibile: `until=`, `label=`, `label!=` |
 | `--json`       | output JSON invece della tabella                                     |
 
 Argomenti o flag sconosciuti: errore + help su stderr, exit code 1.
 Date in UTC; se il daemon non fornisce la data di creazione la colonna mostra `-`.
 L'output del tool è in inglese (vedi [Example output](#example-output)).
+
+## Esempi pratici
+
+Combinazioni reali per vedere cosa succede (nessuna cancella nulla; `jq` è opzionale):
+
+```sh
+docker sp                                                   # cosa toglierebbe `docker image prune`
+docker sp -a --json | jq '{count, total_size, min_reclaimable}'   # numeri di `prune -a`
+docker sp -a --json | jq -r '.images[:3][] | "\(.short_id) \(.tags[0] // "<none>") \(.size)"'  # le 3 più grandi
+docker sp -a --filter 'label!=keep=true' --filter until=24h # escludi label keep, ignora le ultime 24h
+docker sp -a --filter until=720h && docker image prune -a --filter until=720h   # prima guarda, poi pulisci
+DOCKER_HOST=ssh://utente@server docker sp -a                # su un altro daemon
+docker --context staging sp --json                          # su un altro context
+test "$(docker sp --json | jq .count)" -eq 0 || echo "ci sono immagini da pulire"   # controllo negli script
+```
 
 ## Come funziona
 
@@ -313,7 +412,10 @@ argomento: `docker-sp sp --json`. In questo caso valgono `DOCKER_HOST` / `DOCKER
 
 ## Limiti noti
 
-- Il totale è una **sovrastima**: i layer condivisi sono contati per ciascuna immagine.
-- Il filtro `dangling` è valutato dal daemon; con alcuni image store (es. containerd) un'immagine
-  può risultare dangling nel filtro pur avendo tag nella lista completa.
-- Fuori scope per ora: `--filter` di prune (`until`, `label`).
+- `total_size` è una **sovrastima**: i layer condivisi sono contati per ciascuna immagine. Il plugin chiede al daemon anche la dimensione condivisa di ogni immagine e riporta `min_reclaimable` (somma di `size - shared size`): un limite inferiore di ciò che viene liberato di sicuro. Il valore reale sta tra i due, perché i layer condivisi solo tra immagini rimosse vengono liberati ma non sono misurabili via API.
+- Con lo store containerd lo stesso image ID può avere un record con tag e uno dangling, e il filtro
+  `dangling=true` del daemon restituisce quello senza tag. `prune` semplice rimuove solo i record
+  dangling, quindi l'immagine resterebbe: il plugin esclude in modalità base ogni ID che ha almeno
+  un tag nella lista completa. Comportamento dedotto dai dati dell'API, non verificato con un prune reale.
+- `--filter` (`until`, `label`, `label!`) è valutato dal daemon, come in `docker image prune`. Con lo store
+  containerd `until` sembra usare il momento in cui l'immagine è entrata nello store, non la data `Created`.

@@ -54,9 +54,13 @@ func WriteTable(w io.Writer, r Result) error {
 	if len(r.Images) == 1 {
 		noun = "image"
 	}
-	_, err := fmt.Fprintf(w, "\n%d %s would be removed by '%s' — total %s\n"+
-		"(total is an overestimate: layers shared between images are counted more than once)\n",
-		len(r.Images), noun, cmd, HumanSize(r.TotalSize))
+	note := "total is an overestimate: layers shared between images are counted more than once"
+	if r.MinKnown {
+		note += fmt.Sprintf("; at least %s is used only by these images and will certainly be freed",
+			HumanSize(r.MinReclaimable))
+	}
+	_, err := fmt.Fprintf(w, "\n%d %s would be removed by '%s' — total %s\n(%s)\n",
+		len(r.Images), noun, cmd, HumanSize(r.TotalSize), note)
 	return err
 }
 
@@ -66,13 +70,17 @@ type jsonImage struct {
 	Tags    []string `json:"tags"`
 	Created string   `json:"created"`
 	Size    int64    `json:"size"`
+	// UniqueSize is the part of size used only by this image; omitted if unknown.
+	UniqueSize *int64 `json:"unique_size,omitempty"`
 }
 
 type jsonOutput struct {
-	Mode      string      `json:"mode"`
-	Count     int         `json:"count"`
-	TotalSize int64       `json:"total_size"`
-	Images    []jsonImage `json:"images"`
+	Mode      string `json:"mode"`
+	Count     int    `json:"count"`
+	TotalSize int64  `json:"total_size"`
+	// MinReclaimable: lower bound of the space certainly freed; omitted if unknown.
+	MinReclaimable *int64      `json:"min_reclaimable,omitempty"`
+	Images         []jsonImage `json:"images"`
 }
 
 // WriteJSON renders the machine-readable output.
@@ -83,10 +91,18 @@ func WriteJSON(w io.Writer, r Result) error {
 		if tags == nil {
 			tags = []string{}
 		}
-		out.Images = append(out.Images, jsonImage{
+		ji := jsonImage{
 			ID: img.ID, ShortID: ShortID(img.ID), Tags: tags,
 			Created: img.Created.UTC().Format(time.RFC3339), Size: img.Size,
-		})
+		}
+		if u, ok := img.UniqueSize(); ok {
+			ji.UniqueSize = &u
+		}
+		out.Images = append(out.Images, ji)
+	}
+	if r.MinKnown {
+		m := r.MinReclaimable
+		out.MinReclaimable = &m
 	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")

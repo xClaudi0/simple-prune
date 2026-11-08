@@ -31,10 +31,13 @@ func (d dockerDaemon) ContainerImageIDs(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
-func (d dockerDaemon) Images(ctx context.Context, danglingOnly bool) ([]Image, error) {
-	opts := client.ImageListOptions{}
+func (d dockerDaemon) Images(ctx context.Context, danglingOnly bool, filters []Filter) ([]Image, error) {
+	opts := client.ImageListOptions{Filters: make(client.Filters), SharedSize: true}
 	if danglingOnly {
-		opts.Filters = make(client.Filters).Add("dangling", "true")
+		opts.Filters = opts.Filters.Add("dangling", "true")
+	}
+	for _, f := range filters {
+		opts.Filters = opts.Filters.Add(f.Key, f.Value)
 	}
 	res, err := d.api.ImageList(ctx, opts)
 	if err != nil {
@@ -48,7 +51,7 @@ func (d dockerDaemon) Images(ctx context.Context, danglingOnly bool) ([]Image, e
 				tags = append(tags, t)
 			}
 		}
-		out = append(out, Image{ID: s.ID, Tags: tags, Created: time.Unix(s.Created, 0).UTC(), Size: s.Size})
+		out = append(out, Image{ID: s.ID, Tags: tags, Created: time.Unix(s.Created, 0).UTC(), Size: s.Size, SharedSize: s.SharedSize})
 	}
 	return out, nil
 }

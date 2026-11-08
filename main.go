@@ -42,8 +42,9 @@ func commandName() string {
 
 func newCommand(dockerCLI command.Cli) *cobra.Command {
 	var all, asJSON bool
+	var rawFilters []string
 	cmd := &cobra.Command{
-		Use:   commandName() + " [-a|--all] [--json]",
+		Use:   commandName() + " [-a|--all] [--filter key=value] [--json]",
 		Short: "Show which images 'docker image prune [-a]' would remove, without removing anything",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -52,7 +53,11 @@ func newCommand(dockerCLI command.Cli) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			res, err := prune.Select(cmd.Context(), prune.NewDaemon(dockerCLI.Client()), all)
+			filters, err := prune.ParseFilters(rawFilters)
+			if err != nil {
+				return usageError(cmd, err)
+			}
+			res, err := prune.Select(cmd.Context(), prune.NewDaemon(dockerCLI.Client()), all, filters...)
 			if err != nil {
 				return err
 			}
@@ -66,6 +71,7 @@ func newCommand(dockerCLI command.Cli) *cobra.Command {
 	f := cmd.Flags()
 	f.BoolVarP(&all, "all", "a", false, "Simulate 'docker image prune -a' (all unused images, not only dangling)")
 	f.BoolVar(&asJSON, "json", false, "Output JSON instead of a table")
+	f.StringArrayVar(&rawFilters, "filter", nil, "Filter like 'docker image prune --filter': until=<duration|timestamp>, label=<key>[=<value>], label!=<key>[=<value>] (repeatable)")
 	return cmd
 }
 
